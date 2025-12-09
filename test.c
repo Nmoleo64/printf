@@ -1,7 +1,8 @@
 #include "printf.h"
 
 int main() {
-    printf("This is 100%% going to work!\n");
+    char* testString = "Hello, world!";
+    printf("User specified string: %s\n", testString);
 
     return 0;
 }

@@ -4,6 +4,7 @@ global write_char
 
 printf:
     mov [rel read_index], rdi                   ; save value of RDI (first argument) into memory
+    mov [rel second_arg], rsi                   ; save value of RSI (second argument) into memory
 
     ;
     ; Main loop for the program - iterates over the string character by character
@@ -67,7 +68,34 @@ printf:
     ;
     .string:
         ; TODO
-        jmp .read_loop
+
+        ; increment read_index
+        mov r11, qword [rel read_index]         ; copy mem[read_index] into R11
+        inc r11                                 ; increment R11
+        mov [rel read_index], qword r11         ; save incremented value in memory
+
+        ; set string_index = second_arg (pointer to first character)
+        mov r11, qword [rel second_arg]
+        mov [rel string_index], qword r11
+
+        .string_loop:
+            ; copy current character into R12B
+            mov r11, qword [rel string_index]       ; copy mem[string_index] into R11
+            mov r12b, byte [r11]                    ; copy mem[R11] into R12B
+
+            ; check for null byte
+            test r12b, r12b                         ; check if R12B = x00 (NUL)
+            jz .read_loop                           ; if yes, we're done - go back to reading
+
+            ; write character to buffer
+            call write_char
+
+            ; increment string_index
+            mov r11, qword [rel string_index]       ; copy mem[string_index] into R11
+            inc r11                                 ; increment R11
+            mov [rel string_index], qword r11       ; save incremented value in memory
+
+            jmp .string_loop                        ; return to beginning of loop
 
     ;
     ; Called after reading to the end of the string
@@ -103,4 +131,9 @@ section .data
 
 section .bss
     read_index: resb 8                          ; reserve 8 bytes for the memory address of the current
-                                                ; character as we iterate through the string
+                                                ; character as we iterate through the main string
+
+    string_index: resb 8                        ; reserve 8 bytes for the memory address of the current
+                                                ; character as we iterate through a %s string
+
+    second_arg: resb 8                          ; reserve 8 bytes for second argument
