@@ -7,5 +7,7 @@ Warning: This is one of my first projects in learning x86_64 assembly and is not
 ## Build Instructions
 
 ```
-gcc -o test test.c printf.s
+make clean      # Removes old binaries if they exist
+make            # Builds the project
+build/test      # Runs the compiled+assembled binary
 ```
