@@ -3,8 +3,17 @@ all: build/test
 build:
 	mkdir -p build
 
-build/test: | build
-	gcc -fno-builtin-printf -o build/test test.c printf.s
+# Compile test.c
+build/test.o: test.c | build
+	gcc -Wall -c -fno-builtin-printf test.c -o build/test.o
+
+# Assemble printf.s
+build/printf.o: printf.s | build
+	nasm -f elf64 printf.s -o build/printf.o
+
+# Link test.o and printf.o into test
+build/test: build/test.o build/printf.o | build
+	gcc -Wall -fno-builtin-printf build/test.o build/printf.o -o build/test
 
 clean:
 	rm -rf build

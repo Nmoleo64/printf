@@ -4,6 +4,6 @@
 
 #ifndef PRINTF_H                    // Verify that printf.h has not already been imported
 #define PRINTF_H
-void printf2(const char* s, ...);    // Ellipsis tells the compiler to accept a variable number of
+void printf(const char* s, ...);    // Ellipsis tells the compiler to accept a variable number of
                                     // arguments of unknown type
 #endif
