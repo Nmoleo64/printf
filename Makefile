@@ -3,6 +3,9 @@ all: build/test
 build:
 	mkdir -p build
 
+gdb: build/test
+	gdb --args build/test
+
 # Compile test.c
 build/test.o: test.c | build
 	gcc -Wall -c -fno-builtin-printf test.c -o build/test.o

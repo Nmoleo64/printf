@@ -1,10 +1,15 @@
 global printf                   ; make the printf symbol visible to the linker
 global read_buffer
 global write_char
+global increment_arg_offset
 
 printf:
     mov [rel read_index], rdi                   ; save value of RDI (first argument) into memory
-    mov [rel second_arg], rsi                   ; save value of RSI (second argument) into memory
+    mov [rel additional_args], rsi              ; save value of RSI (second argument) into memory
+    mov [rel additional_args + 8], rdx          ; save value of RDX (third argument) into memory
+    mov [rel additional_args + 16], rcx         ; save value of RCX (fourth argument) into memory
+    mov [rel additional_args + 24], r8          ; save value of R8 (fifth argument) into memory
+    mov [rel additional_args + 32], r9          ; save value of R9 (sixth argument) into memory
 
     ;
     ; Main loop for the program - iterates over the string character by character
@@ -74,9 +79,13 @@ printf:
         inc r11                                 ; increment R11
         mov [rel read_index], qword r11         ; save incremented value in memory
 
-        ; set string_index = second_arg (pointer to first character)
-        mov r11, qword [rel second_arg]
-        mov [rel string_index], qword r11
+        ; set string_index = additional_args (pointer to first character)
+        movzx r12, byte [rel arg_offset]            ; R12 = byte offset for additional_args
+        lea r11, [rel additional_args]              ; R11 = additional_args
+        add r11, r12                                ; R11 = additional_args + mem[args_offset]
+        mov r11, [r11]                              ; dereference R11, now R11 = address of first char
+                                                    ; in the string we want to read
+        mov [rel string_index], qword r11           ; save this into memory
 
         .string_loop:
             ; copy current character into R12B
@@ -85,7 +94,7 @@ printf:
 
             ; check for null byte
             test r12b, r12b                         ; check if R12B = x00 (NUL)
-            jz .read_loop                           ; if yes, we're done - go back to reading
+            jz .string_done                         ; if yes, we're done - go back to reading
 
             ; write character to buffer
             call write_char
@@ -96,6 +105,10 @@ printf:
             mov [rel string_index], qword r11       ; save incremented value in memory
 
             jmp .string_loop                        ; return to beginning of loop
+
+        .string_done:
+            call increment_arg_offset               ; increment arg_offset
+            jmp .read_loop                          ; return to main loop
 
     ;
     ; Called after reading to the end of the string
@@ -120,15 +133,32 @@ write_char:
     mov rdx, 1                              ; rdx = number of characters to write (1)
     syscall                                 ; run syscall 1
 
-    ret
+    ret                                     ; return to caller function
 
 ;
-; Memory here will not be zeroed by the OS
+; Subroutine to increment arg_offset by 8
+;
+increment_arg_offset:
+    mov r12b, byte [rel arg_offset]                 ; copy mem[arg_offset] into R12
+    add r12b, 8                                     ; add 8
+
+    cmp r12b, 32                                    ; check if R12B > 32
+    ja .skip_arg_offset                             ; if yes, skip this next line:
+    mov [rel arg_offset], r12b                      ; save R12 to mem[arg_offset]
+
+    ; TODO: address case where we have >6 arguments supplied
+    .skip_arg_offset:
+    ret                                             ; return to caller function
+
+;
+; Memory here *will not* be zeroed by the OS
 ;
 section .data
     read_buffer: times 1024 db 0                ; reserve a 1KB buffer so we don't have to syscall
                                                 ; for every character and initialize it to zeros
-
+;
+; Memory here *will* be zeroed by the OS
+;
 section .bss
     read_index: resb 8                          ; reserve 8 bytes for the memory address of the current
                                                 ; character as we iterate through the main string
@@ -136,4 +166,5 @@ section .bss
     string_index: resb 8                        ; reserve 8 bytes for the memory address of the current
                                                 ; character as we iterate through a %s string
 
-    second_arg: resb 8                          ; reserve 8 bytes for second argument
+    additional_args: resq 5                     ; reserve 8 bytes for each additional argument
+    arg_offset: resb 1                          ; counter to keep track of which argument we are on
