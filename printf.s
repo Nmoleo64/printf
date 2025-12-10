@@ -1,7 +1,5 @@
 global printf                   ; make the printf symbol visible to the linker
 global read_buffer
-global write_char
-global increment_arg_offset
 
 printf:
     mov [rel read_index], rdi                   ; save value of RDI (first argument) into memory
@@ -79,13 +77,8 @@ printf:
         inc r11                                 ; increment R11
         mov [rel read_index], qword r11         ; save incremented value in memory
 
-        ; set string_index = additional_args (pointer to first character)
-        movzx r12, byte [rel arg_offset]            ; R12 = byte offset for additional_args
-        lea r11, [rel additional_args]              ; R11 = additional_args
-        add r11, r12                                ; R11 = additional_args + mem[args_offset]
-        mov r11, [r11]                              ; dereference R11, now R11 = address of first char
-                                                    ; in the string we want to read
-        mov [rel string_index], qword r11           ; save this into memory
+        call get_next_arg                       ; copies next argument into R12
+        mov [rel string_index], qword r12       ; save this into memory
 
         .string_loop:
             ; copy current character into R12B
@@ -107,7 +100,6 @@ printf:
             jmp .string_loop                        ; return to beginning of loop
 
         .string_done:
-            call increment_arg_offset               ; increment arg_offset
             jmp .read_loop                          ; return to main loop
 
     ;
@@ -136,19 +128,29 @@ write_char:
     ret                                     ; return to caller function
 
 ;
-; Subroutine to increment arg_offset by 8
+; Subroutine to get the next argument supplied to the function
+; and then increment the counter
 ;
-increment_arg_offset:
-    mov r12b, byte [rel arg_offset]                 ; copy mem[arg_offset] into R12
-    add r12b, 8                                     ; add 8
+; Outputs:
+;  - R12 = the value of the next argument
+;
+get_next_arg:
+    movzx r11, byte [rel arg_offset]            ; R11 = byte offset for additional_args
+    lea r12, [rel additional_args]              ; R12 = additional_args
+    add r12, r11                                ; R12 = additional_args + mem[args_offset]
+    mov r12, [r12]                              ; dereference R12, now R12 = value of current argument
 
-    cmp r12b, 32                                    ; check if R12B > 32
-    ja .skip_arg_offset                             ; if yes, skip this next line:
-    mov [rel arg_offset], r12b                      ; save R12 to mem[arg_offset]
+    ; increment arg_offset by 8
+    mov r10b, byte [rel arg_offset]             ; copy mem[arg_offset] into R10B
+    add r10b, 8                                 ; add 8
+    cmp r10b, 32                                ; check if R10B > 32
+    ja .skip_arg_offset                         ; if yes, skip this next line:
+    mov [rel arg_offset], r10b                  ; save R10B to mem[arg_offset]
 
     ; TODO: address case where we have >6 arguments supplied
     .skip_arg_offset:
-    ret                                             ; return to caller function
+
+    ret                                         ; return to caller function
 
 ;
 ; Memory here *will not* be zeroed by the OS

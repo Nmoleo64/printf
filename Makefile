@@ -4,7 +4,7 @@ build:
 	mkdir -p build
 
 gdb: build/test
-	gdb --args build/test
+	gdb -ex "break get_next_arg.skip_arg_offset" --args build/test
 
 # Compile test.c
 build/test.o: test.c | build
