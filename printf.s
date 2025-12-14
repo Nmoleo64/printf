@@ -1,5 +1,5 @@
 global printf                   ; make the printf symbol visible to the linker
-global read_buffer
+global output_buffer
 
 printf:
     mov [rel read_index], rdi                   ; save value of RDI (first argument) into memory
@@ -44,15 +44,18 @@ printf:
         inc r11                                 ; increment R11
         mov [rel read_index], qword r11         ; save incremented value in memory
 
-        ; copy next character into r12b
+        ; copy next character into R12B
         mov r11, qword [rel read_index]         ; copy mem[read_index] into R11
-        mov r12b, byte [r11]                    ; copy mem[R11] into r12b
+        mov r12b, byte [r11]                    ; copy mem[R11] into R12B
 
-        cmp r12b, 37                            ; check if r12b = x25 ('%')
+        cmp r12b, 37                            ; check if R12B = x25 ('%')
         je .escaped_percent                     ; if yes, print a '%' character
 
-        cmp r12b, 115                           ; check if r12b = x73 ('s')
+        cmp r12b, 115                           ; check if R12B = x73 ('s')
         je .string                              ; if yes, print string from user argument
+
+        cmp r12b, 100                           ; check if R12B = x64 ('d')
+        je .signed_int                          ; if yes, print signed int from user argument
 
         jmp .read_loop
 
@@ -70,15 +73,10 @@ printf:
     ; Called when '%s' is encountered within the string
     ;
     .string:
-        ; TODO
+        call increment_read_index                   ; increment read_index variable
 
-        ; increment read_index
-        mov r11, qword [rel read_index]         ; copy mem[read_index] into R11
-        inc r11                                 ; increment R11
-        mov [rel read_index], qword r11         ; save incremented value in memory
-
-        call get_next_arg                       ; copies next argument into R12
-        mov [rel string_index], qword r12       ; save this into memory
+        call get_next_arg                           ; copies next argument into R12
+        mov [rel string_index], qword r12           ; save this into memory
 
         .string_loop:
             ; copy current character into R12B
@@ -103,10 +101,38 @@ printf:
             jmp .read_loop                          ; return to main loop
 
     ;
+    ; Called when '%d' is encountered within the string
+    ;
+    .signed_int:
+        call increment_read_index                   ; increment read_index variable
+
+        call get_next_arg                           ; copies next argument into R12
+        mov r13, r12                                ; copy R12 into R13 - we need R12 for the input
+                                                    ; to the write_char subroutine
+
+        ; check if the value is negative
+        test r12d, r12d                             ; check if R12 is negative
+        js .print_negative_sign                     ; if R12 is negative, print a negative sign
+
+        .done_printing_negative_sign:
+
+        jmp .read_loop                              ; return to main loop
+
+        .print_negative_sign:
+            mov r12, 45                             ; R12 = x2D ('-')
+            call write_char                         ; write char to buffer
+
+            neg r12                                 ; flip sign of R12 and R13 so we can
+            neg r13                                 ; print normally
+
+            jmp .done_printing_negative_sign        ; return
+    
+    ;
     ; Called after reading to the end of the string
+    ; Print remaining characters in the buffer and terminate
     ;
     .done_reading:
-        ret                                     ; return to caller function
+        ret                                         ; return to C caller function
 
 ;
 ; Subroutine to write a single character to the buffer
@@ -118,10 +144,10 @@ printf:
 write_char:
     ; TODO - make this actually use the buffer instead of going 1 char at a time
 
-    mov byte [rel read_buffer], r12b        ; copy byte from r12b into read_buffer[0]
+    mov byte [rel output_buffer], r12b      ; copy byte from r12b into output_buffer[0]
     mov rax, 1                              ; syscall number = 1 (write)
     mov rdi, 1                              ; file descriptor = 1 (stdout)
-    lea rsi, [rel read_buffer]              ; rsi = pointer to read_buffer
+    lea rsi, [rel output_buffer]            ; rsi = pointer to output_buffer
     mov rdx, 1                              ; rdx = number of characters to write (1)
     syscall                                 ; run syscall 1
 
@@ -151,12 +177,21 @@ get_next_arg:
     .skip_arg_offset:
 
     ret                                         ; return to caller function
+;
+; Function to increment the read_index variable without writing to the buffer
+;
+increment_read_index:
+        mov r11, qword [rel read_index]         ; copy mem[read_index] into R11
+        inc r11                                 ; increment R11
+        mov [rel read_index], qword r11         ; save incremented value in memory
+
+        ret                                     ; return to caller function
 
 ;
 ; Memory here *will not* be zeroed by the OS
 ;
 section .data
-    read_buffer: times 1024 db 0                ; reserve a 1KB buffer so we don't have to syscall
+    output_buffer: times 1024 db 0              ; reserve a 1KB buffer so we don't have to syscall
                                                 ; for every character and initialize it to zeros
 ;
 ; Memory here *will* be zeroed by the OS
